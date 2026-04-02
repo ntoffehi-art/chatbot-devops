@@ -125,4 +125,4 @@ def chat():
         return jsonify({"reponse": "Je n'ai pas compris votre problème. Essayez de le décrire autrement (ex: 'PC lent', 'pas internet', 'écran bleu')."})
 
 if __name__ == "__main__":
-    app.run(debug=True)#lancement de serveur
+    app.run(debug=True)

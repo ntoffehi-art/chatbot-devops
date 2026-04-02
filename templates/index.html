@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot Pannes Informatiques</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="container">
+
+    <!-- Header -->
+    <div class="header">
+        <div class="header-icon">🖥️</div>
+        <div>
+            <h1>Support Technique</h1>
+            <p>Assistant pannes informatiques • En ligne</p>
+        </div>
+    </div>
+
+    <!-- Messages -->
+    <div class="messages" id="messages">
+        <div class="message bot">
+            <div class="avatar">🤖</div>
+            <div class="bubble">
+                Bonjour ! Je suis votre assistant technique.<br>
+                Décrivez votre panne et je vous aide à la résoudre.<br><br>
+                <strong>Exemples :</strong><br>
+                • Mon PC ne démarre pas<br>
+                • Écran bleu au démarrage<br>
+                • Internet ne fonctionne pas<br>
+                • PC très lent
+            </div>
+        </div>
+    </div>
+
+    <!-- Input -->
+    <div class="input-area">
+        <input
+            type="text"
+            id="user-input"
+            placeholder="Décrivez votre problème..."
+            autocomplete="off"
+        />
+        <button id="send-btn" onclick="envoyerMessage()">Envoyer</button>
+    </div>
+
+</div>
+
+<script>
+    // Envoyer avec la touche Entrée
+    document.getElementById("user-input").addEventListener("keydown", function(e) {
+        if (e.key === "Enter") envoyerMessage();
+    });
+
+    function ajouterMessage(texte, role) {
+        const messages = document.getElementById("messages");
+
+        const div = document.createElement("div");
+        div.className = "message " + role;
+
+        const avatar = document.createElement("div");
+        avatar.className = "avatar";
+        avatar.textContent = role === "bot" ? "🤖" : "👤";
+
+        const bubble = document.createElement("div");
+        bubble.className = "bubble";
+        // Remplacer les sauts de ligne par <br>
+        bubble.innerHTML = texte.replace(/\n/g, "<br>");
+
+        div.appendChild(avatar);
+        div.appendChild(bubble);
+        messages.appendChild(div);
+
+        // Scroll vers le bas
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function afficherTyping() {
+        const messages = document.getElementById("messages");
+        const div = document.createElement("div");
+        div.className = "message bot";
+        div.id = "typing";
+        div.innerHTML = '<div class="avatar">🤖</div><div class="bubble typing"><span></span><span></span><span></span></div>';
+        messages.appendChild(div);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function supprimerTyping() {
+        const typing = document.getElementById("typing");
+        if (typing) typing.remove();
+    }
+
+    async function envoyerMessage() {
+        const input = document.getElementById("user-input");
+        const message = input.value.trim();
+        if (!message) return;
+
+        // Afficher le message de l'utilisateur
+        ajouterMessage(message, "user");
+        input.value = "";
+
+        // Afficher l'animation de chargement
+        afficherTyping();
+
+        // Envoyer au serveur Flask
+        try {
+            const response = await fetch("/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ message: message })
+            });
+
+            const data = await response.json();
+            supprimerTyping();
+            ajouterMessage(data.reponse, "bot");
+
+        } catch (error) {
+            supprimerTyping();
+            ajouterMessage("Erreur de connexion au serveur.", "bot");
+        }
+    }
+</script>
+
+</body>
+</html>

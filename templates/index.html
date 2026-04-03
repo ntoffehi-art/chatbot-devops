@@ -7,73 +7,68 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-
 <div class="container">
 
-    <!-- Header -->
     <div class="header">
         <div class="header-icon">🖥️</div>
-        <div>
+        <div class="header-info">
             <h1>Support Technique</h1>
-            <p>Assistant pannes informatiques • En ligne</p>
+            <p>Assistant pannes informatiques • NLTK</p>
+        </div>
+        <div class="status">
+            <div class="status-dot"></div>
+            En ligne
         </div>
     </div>
 
-    <!-- Messages -->
     <div class="messages" id="messages">
         <div class="message bot">
             <div class="avatar">🤖</div>
             <div class="bubble">
                 Bonjour ! Je suis votre assistant technique.<br>
                 Décrivez votre panne et je vous aide à la résoudre.<br><br>
-                <strong>Exemples :</strong><br>
-                • Mon PC ne démarre pas<br>
-                • Écran bleu au démarrage<br>
-                • Internet ne fonctionne pas<br>
-                • PC très lent
+                <strong>Exemples :</strong>
+                <div class="suggestions">
+                    <span class="sugg" onclick="envoyer(this.textContent)">PC ne démarre pas</span>
+                    <span class="sugg" onclick="envoyer(this.textContent)">Écran bleu</span>
+                    <span class="sugg" onclick="envoyer(this.textContent)">Internet ne marche pas</span>
+                    <span class="sugg" onclick="envoyer(this.textContent)">PC très lent</span>
+                    <span class="sugg" onclick="envoyer(this.textContent)">Virus</span>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Input -->
     <div class="input-area">
-        <input
-            type="text"
-            id="user-input"
-            placeholder="Décrivez votre problème..."
-            autocomplete="off"
-        />
-        <button id="send-btn" onclick="envoyerMessage()">Envoyer</button>
+        <input type="text" id="user-input" placeholder="Décrivez votre problème..." autocomplete="off" />
+        <button onclick="envoyerMessage()">Envoyer ➤</button>
     </div>
 
 </div>
 
 <script>
-    // Envoyer avec la touche Entrée
-    document.getElementById("user-input").addEventListener("keydown", function(e) {
+    document.getElementById("user-input").addEventListener("keydown", e => {
         if (e.key === "Enter") envoyerMessage();
     });
 
+    function envoyer(texte) {
+        document.getElementById("user-input").value = texte;
+        envoyerMessage();
+    }
+
     function ajouterMessage(texte, role) {
         const messages = document.getElementById("messages");
-
         const div = document.createElement("div");
         div.className = "message " + role;
-
         const avatar = document.createElement("div");
         avatar.className = "avatar";
         avatar.textContent = role === "bot" ? "🤖" : "👤";
-
         const bubble = document.createElement("div");
         bubble.className = "bubble";
-        // Remplacer les sauts de ligne par <br>
         bubble.innerHTML = texte.replace(/\n/g, "<br>");
-
         div.appendChild(avatar);
         div.appendChild(bubble);
         messages.appendChild(div);
-
-        // Scroll vers le bas
         messages.scrollTop = messages.scrollHeight;
     }
 
@@ -88,40 +83,31 @@
     }
 
     function supprimerTyping() {
-        const typing = document.getElementById("typing");
-        if (typing) typing.remove();
+        const t = document.getElementById("typing");
+        if (t) t.remove();
     }
 
     async function envoyerMessage() {
         const input = document.getElementById("user-input");
         const message = input.value.trim();
         if (!message) return;
-
-        // Afficher le message de l'utilisateur
         ajouterMessage(message, "user");
         input.value = "";
-
-        // Afficher l'animation de chargement
         afficherTyping();
-
-        // Envoyer au serveur Flask
         try {
             const response = await fetch("/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ message: message })
+                body: JSON.stringify({ message })
             });
-
             const data = await response.json();
             supprimerTyping();
             ajouterMessage(data.reponse, "bot");
-
-        } catch (error) {
+        } catch {
             supprimerTyping();
             ajouterMessage("Erreur de connexion au serveur.", "bot");
         }
     }
 </script>
-
 </body>
 </html>

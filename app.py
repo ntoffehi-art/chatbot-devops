@@ -19,7 +19,7 @@ app = Flask(__name__)
 BASE = [
     {
         "categorie": "Démarrage",
-        "mots_cles": ["démarrer", "démarrage", "allumer", "allumage", "boot", "bip", "noir", "rien", "éteint"],
+        "mots_cles": ["démarrer", "démarrage", "allumer", "allumage", "boot", "bip", "noir", "rien", "éteint", "demarre", "demarrage", "allume", "eteint", "demar"],
         "reponse": "💡 PC ne démarre pas :\n1. Vérifiez le câble d'alimentation\n2. Vérifiez la prise électrique\n3. Appuyez 10 secondes sur le bouton power\n4. Débranchez tous les périphériques USB\n5. Si vous entendez des bips → notez leur nombre\n⚠️ Problème possible : alimentation ou carte mère."
     },
     {

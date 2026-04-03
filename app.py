@@ -69,6 +69,17 @@ STOP_WORDS = set(stopwords.words("french"))
 
 def pretraiter(texte):
     texte = texte.lower()
+    accents = {
+        'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+        'à': 'a', 'â': 'a', 'ä': 'a',
+        'ô': 'o', 'ö': 'o',
+        'û': 'u', 'ù': 'u', 'ü': 'u',
+        'î': 'i', 'ï': 'i',
+        'ç': 'c'
+    }
+    for accent, lettre in accents.items():
+        texte = texte.replace(accent, lettre)
+
     #supprimes les symboles
     texte = texte.translate(str.maketrans("", "", string.punctuation))
     #coupe la chine en une liste de mots

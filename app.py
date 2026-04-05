@@ -136,4 +136,6 @@ def chat():
         return jsonify({"reponse": "Je n'ai pas compris votre problème. Essayez de le décrire autrement (ex: 'PC lent', 'pas internet', 'écran bleu')."})
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    import os
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)

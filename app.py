@@ -1,25 +1,34 @@
 from flask import Flask, render_template, request, jsonify
-import nltk
-import string
-from dotenv import load_dotenv
 import os
-load_dotenv()
+import string
+import nltk
+from dotenv import load_dotenv
 from nltk.stem import SnowballStemmer
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 import google.generativeai as genai
 
 # =============================
-# GEMINI SETUP (SECURE)
+# ENV + GEMINI
 # =============================
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-pro")
+load_dotenv()
+
+API_KEY = os.getenv("GEMINI_API_KEY")
+if not API_KEY:
+    raise ValueError("GEMINI_API_KEY missing in .env")
+
+genai.configure(api_key=API_KEY)
+
+model = genai.GenerativeModel("models/gemini-2.5-flash")
 
 # =============================
-# INIT FLASK + NLTK
+# FLASK
 # =============================
 app = Flask(__name__)
 
+# =============================
+# NLTK
+# =============================
 nltk.download('punkt', quiet=True)
 nltk.download('stopwords', quiet=True)
 
@@ -27,41 +36,41 @@ stemmer = SnowballStemmer("french")
 STOP_WORDS = set(stopwords.words("french"))
 
 # =============================
-# BASE DE CONNAISSANCES
+# BASE KNOWLEDGE
 # =============================
 BASE = [
     {
         "categorie": "Démarrage",
         "mots_cles": ["demarr", "allum", "boot", "bip", "noir"],
-        "reponse": "Problème possible d’alimentation ou carte mère. Vérifiez câble et prise."
+        "reponse": "Vérifiez alimentation et câble."
     },
     {
         "categorie": "Lenteur",
         "mots_cles": ["lent", "freeze", "lag", "ramer"],
-        "reponse": "PC lent : vérifiez le gestionnaire des tâches et supprimez les programmes inutiles."
+        "reponse": "Fermez les programmes inutiles."
     },
     {
         "categorie": "Internet",
         "mots_cles": ["wifi", "internet", "reseau", "connexion"],
-        "reponse": "Redémarrez le routeur et testez la connexion avec un autre appareil."
+        "reponse": "Redémarrez le routeur."
     },
     {
         "categorie": "Virus",
         "mots_cles": ["virus", "malware", "trojan"],
-        "reponse": "Déconnectez internet et lancez un scan antivirus complet."
+        "reponse": "Lancez un antivirus complet."
     }
 ]
 
 # =============================
-# MEMOIRE SIMPLE
+# MEMORY
 # =============================
 sessions = {}
 
 # =============================
-# NLP PREPROCESSING
+# NLP
 # =============================
-def pretraiter(texte):
-    texte = texte.lower()
+def pretraiter(text):
+    text = text.lower()
 
     accents = {
         'é': 'e','è': 'e','ê': 'e','ë': 'e',
@@ -73,10 +82,10 @@ def pretraiter(texte):
     }
 
     for a, b in accents.items():
-        texte = texte.replace(a, b)
+        text = text.replace(a, b)
 
-    texte = texte.translate(str.maketrans("", "", string.punctuation))
-    tokens = word_tokenize(texte)
+    text = text.translate(str.maketrans("", "", string.punctuation))
+    tokens = word_tokenize(text)
 
     return [
         stemmer.stem(t)
@@ -85,16 +94,16 @@ def pretraiter(texte):
     ]
 
 # =============================
-# FIND BASE RESPONSE
+# BASE MATCH
 # =============================
 def trouver_reponse(message):
-    racines = pretraiter(message)
+    words = pretraiter(message)
 
-    best_score = 0
     best = None
+    best_score = 0
 
     for cat in BASE:
-        score = sum(1 for w in racines if w in cat["mots_cles"])
+        score = sum(1 for w in words if w in cat["mots_cles"])
         if score > best_score:
             best_score = score
             best = cat
@@ -102,35 +111,40 @@ def trouver_reponse(message):
     return best["reponse"] if best else None
 
 # =============================
-# AI (GEMINI)
+# GEMINI AI
 # =============================
 def ai_response(user_msg, base_response, history):
+    try:
+        history_text = ""
+        for msg in history[-5:]:
+            role = "User" if msg["role"] == "user" else "Assistant"
+            history_text += f"{role}: {msg['content']}\n"
 
-    history_text = ""
-    for msg in history[-5:]:
-        role = "User" if msg["role"] == "user" else "Assistant"
-        history_text += f"{role}: {msg['content']}\n"
+        prompt = f"""
+You are a computer technician.
 
-    prompt = f"""
-Tu es un expert en dépannage informatique.
-
-Historique:
+History:
 {history_text}
 
-Problème utilisateur:
+User problem:
 {user_msg}
 
-Solution technique:
-{base_response if base_response else "Aucune solution trouvée"}
+Base solution:
+{base_response}
 
-Règles:
-- Explique simplement
-- Étapes claires
-- Une seule question à la fin
+Rules:
+- simple explanation
+- step by step
+- max 5 lines
+- ask one question
 """
 
-    response = model.generate_content(prompt)
-    return response.text[:800]
+        response = model.generate_content(prompt)
+        return response.text[:700]
+
+    except Exception as e:
+        print("AI ERROR:", e)
+        return "Erreur IA, réessayez plus tard."
 
 # =============================
 # ROUTES
@@ -153,9 +167,6 @@ def chat():
 
     base_response = trouver_reponse(message)
 
-    if not base_response:
-        base_response = "Aucune solution précise trouvée."
-
     history.append({"role": "user", "content": message})
 
     final_response = ai_response(message, base_response, history)
@@ -168,5 +179,4 @@ def chat():
 # RUN
 # =============================
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=5000, debug=False)

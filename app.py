@@ -57,7 +57,7 @@ BASE = [
             "Essayez avec un autre appareil",
             "Vérifiez les câbles réseau"
         ],
-        "question": "Le problème concerne tous les appareils ou فقط votre PC ?"
+        "question": "Le problème concerne tous les appareils ou seulement votre PC ?"
     },
     {
         "categorie": "Lenteur",
@@ -68,7 +68,7 @@ BASE = [
             "Vérifiez l'espace disque",
             "Lancez un scan antivirus"
         ],
-        "question": "Votre PC est lent tout le temps ou seulement avec بعض البرامج ؟"
+        "question": "Votre PC est lent tout le temps ou seulement avec certains programmes ?"
     },
     {
         "categorie": "Imprimante",
@@ -78,53 +78,42 @@ BASE = [
             "Vérifiez les niveaux d’encre",
             "Redémarrez l’imprimante",
             "Vérifiez les pilotes (drivers)"
-    ],
+        ],
         "question": "Est-ce que l’imprimante est reconnue par l’ordinateur ?"
     },
     {
-    "categorie": "Virus",
-    "mots_cles": ["virus", "malware", "trojan", "infect"],
-    "solutions": [
-        "Lancez un antivirus complet",
-        "Supprimez les programmes suspects",
-        "Mettez à jour votre antivirus",
-        "Redémarrez en mode sécurisé"
-    ],
-    "question": "Avez-vous installé un logiciel récemment ?"
-},
-{
-    "categorie": "Clavier/Souris",
-    "mots_cles": ["clavier", "souris", "mouse", "keyboard"],
-    "solutions": [
-        "Vérifiez la connexion USB ou Bluetooth",
-        "Changez les piles si c’est sans fil",
-        "Redémarrez le PC",
-        "Essayez un autre port USB"
-    ],
-    "question": "Est-ce que le périphérique est détecté par le PC ?"
-},
-{
-    "categorie": "Son",
-    "mots_cles": ["son", "audio", "haut-parleur", "speaker"],
-    "solutions": [
-        "Vérifiez le volume",
-        "Vérifiez les périphériques audio",
-        "Mettez à jour les drivers son",
-        "Redémarrez le PC"
-    ],
-    "question": "Le problème est-il sur casque ou haut-parleurs ?"
-},
-{
-    "categorie": "Imprimante",
-    "mots_cles": ["imprimante", "print", "papier", "scanner"],
-    "solutions": [
-        "Vérifiez la connexion de l’imprimante",
-        "Vérifiez le niveau d’encre",
-        "Redémarrez l’imprimante",
-        "Installez les drivers"
-    ],
-    "question": "L’imprimante est-elle reconnue par le PC ?"
-}
+        "categorie": "Virus",
+        "mots_cles": ["virus", "malware", "trojan", "infect"],
+        "solutions": [
+            "Lancez un antivirus complet",
+            "Supprimez les programmes suspects",
+            "Mettez à jour votre antivirus",
+            "Redémarrez en mode sécurisé"
+        ],
+        "question": "Avez-vous installé un logiciel récemment ?"
+    },
+    {
+        "categorie": "Clavier/Souris",
+        "mots_cles": ["clavier", "souris", "mouse", "keyboard"],
+        "solutions": [
+            "Vérifiez la connexion USB ou Bluetooth",
+            "Changez les piles si c’est sans fil",
+            "Redémarrez le PC",
+            "Essayez un autre port USB"
+        ],
+        "question": "Est-ce que le périphérique est détecté par le PC ?"
+    },
+    {
+        "categorie": "Son",
+        "mots_cles": ["son", "audio", "haut-parleur", "speaker"],
+        "solutions": [
+            "Vérifiez le volume",
+            "Vérifiez les périphériques audio",
+            "Mettez à jour les drivers son",
+            "Redémarrez le PC"
+        ],
+        "question": "Le problème est-il sur casque ou haut-parleurs ?"
+    }
 ]
 
 # =============================
@@ -205,17 +194,20 @@ def ai_response(base_text):
         prompt = f"""Tu es TechBot, assistant technique.
 Améliore ce texte : rends-le clair, naturel, en français.
 Ne change pas le sens. Garde la numérotation si présente.
+IMPORTANT: Réponds UNIQUEMENT avec le texte amélioré, sans introduction, sans phrase comme "Voici une version améliorée", commence directement par le contenu.
 
 Texte:
 {base_text}
 """
         response = model.generate_content(prompt)
         return response.text
-    except:
+    except Exception as e:
+        print(f"Erreur Gemini: {e}")
         return base_text
     
 def is_greeting(message):
-    return message.lower().strip() in ["bonjour", "salut", "hello", "salam"]
+    greetings = ["bonjour", "salut", "hello", "salam", "bonsoir", "hi", "hey"]
+    return any(g in message.lower() for g in greetings)
 # =============================
 # =============================
 # GEMINI FALLBACK (problème non reconnu)
@@ -245,7 +237,8 @@ Problème:
 """
         response = model.generate_content(prompt)
         return response.text
-    except:
+    except Exception as e:
+        print(f"Erreur Gemini fallback: {e}")
         return "Pouvez-vous préciser votre problème ?"
 # ROUTES
 # =============================
@@ -258,17 +251,19 @@ def chat():
     message = data.get("message", "").strip()
     user_id = request.remote_addr
         # 🧠 INIT SESSION PROPERLY
+    if len(sessions) > 100:
+        sessions.clear()
     if user_id not in sessions:
         sessions[user_id] = {
             "history": [],
-            "asked": [],
+            "ambiguity_asked": False,
+            "question_asked": False,
             "state": "start"
         }
-
+        
     session = sessions[user_id]
     history = session["history"]
-    asked = session["asked"]
-    last_user = history[-2]["content"] if len(history) > 1 else ""
+    last_user = history[-2]["content"] if len(history) >= 2 and history[-2]["role"] == "user" else ""
     combined_message = last_user + " " + message
 
     # 🟢 greeting
@@ -281,17 +276,16 @@ def chat():
 
     # 🧠 CATEGORY
     cat, second = trouver_categorie(combined_message)
-    session["last_cat"] = cat["categorie"] if cat else session.get("last_cat")
-
+    
     # ❌ NOT UNDERSTOOD
     if not cat:
         reply = gemini_fallback(message, history)
         session["state"] = "fallback"
 
     # 🤯 AMBIGUITY
-    elif second and "ambiguity" not in asked:
+    elif second and not session["ambiguity_asked"]:
         reply = f"Est-ce que votre problème concerne plutôt {cat['categorie']} ?"
-        asked.append("ambiguity")
+        session["ambiguity_asked"] = True
         session["state"] = "ambiguity"
 
     # ✅ NORMAL FLOW
@@ -299,15 +293,14 @@ def chat():
         base = build_response(cat)
         reply = base["text"]
         # 🔥 only one question
-        if len(asked) < 1:
+        if not session["question_asked"]:
             reply += "\n\n" + base["question"]
-            asked.append("question_asked")
+            session["question_asked"] = True
         session["state"] = "solution"
         # AI enhancement ONLY here
         reply = ai_response(reply)
 
     history.append({"role": "bot", "content": reply})
-    session["state"] = "solution" if cat else "fallback"
 
     return jsonify({"reponse": reply})
 # =============================

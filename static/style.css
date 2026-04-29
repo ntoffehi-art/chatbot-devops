@@ -310,3 +310,16 @@ body {
 .messages::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 10px; }
 .conversations::-webkit-scrollbar { width: 3px; }
 .conversations::-webkit-scrollbar-thumb { background: #374151; border-radius: 10px; }
+
+
+@media (max-width: 768px) {
+    .sidebar {
+        position: absolute;
+        z-index: 100;
+        height: 100%;
+        transform: translateX(-100%);
+    }
+    .sidebar.open {
+        transform: translateX(0);
+    }
+}

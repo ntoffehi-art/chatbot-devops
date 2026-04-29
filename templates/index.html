@@ -71,9 +71,9 @@
 
 <script>
 // ============================================================
-//   GESTION DE L'HISTORIQUE (localStorage)
+//   1-GESTION DE L'HISTORIQUE (localStorage)
 // ============================================================
-
+// Chargement des conversations sauvegardées (ou tableau vide si aucune)
 let conversations = JSON.parse(localStorage.getItem('techbot_conversations') || '[]');
 let convActive = null;
 
@@ -189,7 +189,6 @@ function envoyer(texte) {
 }
 
 function ajouterMessageUI(texte, role, time, scroll = true) {
-    const messages = document.getElementById("messages");
     const div = document.createElement("div");
     div.className = "message " + role;
     const avatar = document.createElement("div");

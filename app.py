@@ -1,24 +1,20 @@
 from flask import Flask, render_template, request, jsonify
-import os
 import string
 import nltk
-from dotenv import load_dotenv
 from nltk.stem import SnowballStemmer
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
-import google.generativeai as genai
-# =============================
-# MEMORY
-# =============================
-sessions = {}
-# ENV + GEMINI
-# =============================
-load_dotenv()
-API_KEY = os.getenv("GEMINI_API_KEY")
-genai.configure(api_key=API_KEY)
+from gpt4all import GPT4All
 
-model = genai.GenerativeModel("models/gemini-2.5-flash")
-
+# =============================
+# GPT4ALL MODEL
+# =============================
+# Après — chemin complet direct
+llm = GPT4All(
+    model_name="Llama-3.2-1B-Instruct-Q4_0.gguf",
+    model_path=r"C:\Users\dell\AppData\Local\nomic.ai\GPT4All\models",
+    allow_download=False
+)
 # =============================
 # FLASK
 # =============================
@@ -34,12 +30,17 @@ stemmer = SnowballStemmer("french")
 STOP_WORDS = set(stopwords.words("french"))
 
 # =============================
+# MEMORY
+# =============================
+sessions = {}
+
+# =============================
 # BASE KNOWLEDGE
 # =============================
 BASE = [
     {
         "categorie": "Demarrage",
-        "mots_cles": ["demarr", "boot", "noir", "bip"],
+        "mots_cles": ["demarr", "boot", "noir", "bip", "demarre"],
         "solutions": [
             "Vérifiez que le câble d'alimentation est bien branché",
             "Essayez une autre prise électrique",
@@ -57,77 +58,16 @@ BASE = [
             "Essayez avec un autre appareil",
             "Vérifiez les câbles réseau"
         ],
-        "question": "Le problème concerne tous les appareils ou فقط votre PC ?"
-    },
-    {
-        "categorie": "Lenteur",
-        "mots_cles": ["lent", "lag", "freeze", "ramer"],
-        "solutions": [
-            "Fermez les programmes inutiles",
-            "Redémarrez votre ordinateur",
-            "Vérifiez l'espace disque",
-            "Lancez un scan antivirus"
-        ],
-        "question": "Votre PC est lent tout le temps ou seulement avec بعض البرامج ؟"
-    },
-    {
-        "categorie": "Imprimante",
-        "mots_cles": ["imprimante", "print", "papier", "scan", "scanner"],
-        "solutions": [
-            "Vérifiez que l’imprimante est bien branchée",
-            "Vérifiez les niveaux d’encre",
-            "Redémarrez l’imprimante",
-            "Vérifiez les pilotes (drivers)"
-    ],
-        "question": "Est-ce que l’imprimante est reconnue par l’ordinateur ?"
-    },
-    {
-    "categorie": "Virus",
-    "mots_cles": ["virus", "malware", "trojan", "infect"],
-    "solutions": [
-        "Lancez un antivirus complet",
-        "Supprimez les programmes suspects",
-        "Mettez à jour votre antivirus",
-        "Redémarrez en mode sécurisé"
-    ],
-    "question": "Avez-vous installé un logiciel récemment ?"
-},
-{
-    "categorie": "Clavier/Souris",
-    "mots_cles": ["clavier", "souris", "mouse", "keyboard"],
-    "solutions": [
-        "Vérifiez la connexion USB ou Bluetooth",
-        "Changez les piles si c’est sans fil",
-        "Redémarrez le PC",
-        "Essayez un autre port USB"
-    ],
-    "question": "Est-ce que le périphérique est détecté par le PC ?"
-},
-{
-    "categorie": "Son",
-    "mots_cles": ["son", "audio", "haut-parleur", "speaker"],
-    "solutions": [
-        "Vérifiez le volume",
-        "Vérifiez les périphériques audio",
-        "Mettez à jour les drivers son",
-        "Redémarrez le PC"
-    ],
-    "question": "Le problème est-il sur casque ou haut-parleurs ?"
-},
-{
-    "categorie": "Imprimante",
-    "mots_cles": ["imprimante", "print", "papier", "scanner"],
-    "solutions": [
-        "Vérifiez la connexion de l’imprimante",
-        "Vérifiez le niveau d’encre",
-        "Redémarrez l’imprimante",
-        "Installez les drivers"
-    ],
-    "question": "L’imprimante est-elle reconnue par le PC ?"
-}
+        "question": "Le problème concerne tous les appareils ou seulement votre PC ?"
+    }
 ]
 
 # =============================
+# GREETING
+# =============================
+def is_greeting(message):
+    greetings = ["bonjour", "salut", "hello", "salam", "hi"]
+    return any(g in message.lower() for g in greetings)
 
 # =============================
 # NLP
@@ -157,161 +97,85 @@ def pretraiter(text):
     ]
 
 # =============================
-# DETECTION CATEGORY
+# CATEGORY DETECTION
 # =============================
 def trouver_categorie(message):
     words = set(pretraiter(message))
-    scores = []
+
+    best_cat = None
+    best_score = 0
+
     for cat in BASE:
         keywords = set(cat["mots_cles"])
         score = len(words.intersection(keywords))
-        if score > 0:
-            confidence = score / len(keywords)
-            scores.append({
-                "cat": cat,
-                "score": score,
-                "confidence": confidence
-            })
-    if not scores:
-        return None, None
 
-    scores.sort(key=lambda x: (x["confidence"], x["score"]), reverse=True)
+        if score > best_score:
+            best_score = score
+            best_cat = cat
 
-    best = scores[0]["cat"]
+    if best_score == 0:
+        return None
 
-    if scores[0]["confidence"] < 0.25:
-        return None, None
+    return best_cat
 
-    if len(scores) > 1:
-        second = scores[1]["cat"]
-
-        if abs(scores[0]["score"] - scores[1]["score"]) <= 1:
-            return best, second
-
-    return best, None
-
-# RESPONSE BUILD
+# =============================
+# RESPONSE BUILDER
+# =============================
 def build_response(cat):
     steps = "\n".join([f"{i+1}. {s}" for i, s in enumerate(cat["solutions"])])
-    return {
-        "text": f"Voici les étapes à suivre :\n{steps}",
-        "question": cat["question"]
-    }
-# =============================
-# GEMINI AI
-# =============================
-def ai_response(base_text):
-    try:
-        prompt = f"""Tu es TechBot, assistant technique.
-Améliore ce texte : rends-le clair, naturel, en français.
-Ne change pas le sens. Garde la numérotation si présente.
+    return f"Voici les étapes à suivre :\n{steps}\n\n{cat['question']}"
 
-Texte:
-{base_text}
-"""
-        response = model.generate_content(prompt)
-        return response.text
-    except:
-        return base_text
-    
-def is_greeting(message):
-    return message.lower().strip() in ["bonjour", "salut", "hello", "salam"]
 # =============================
+# GPT4ALL AI
 # =============================
-# GEMINI FALLBACK (problème non reconnu)
-# =============================
-def gemini_fallback(message, history):
+def ai_response(text):
     try:
-        history_text = "\n".join([
-            f"{h['role']}: {h['content']}"
-            for h in history[-6:]
-        ])
-
         prompt = f"""
-Tu es un assistant technique expert.
+Tu es un assistant technique.
+Rends ce texte clair, simple et naturel en français.
 
-Même si ce n'est pas dans ta base, comprends le problème.
-
-Donne:
-- diagnostic probable
-- solution simple
-- une question finale
-
-Historique:
-{history_text}
-
-Problème:
-{message}
+{text}
 """
-        response = model.generate_content(prompt)
-        return response.text
-    except:
-        return "Pouvez-vous préciser votre problème ?"
+        with llm.chat_session():
+            response = llm.generate(prompt, max_tokens=200)
+
+        return response.strip()
+
+    except Exception as e:
+        print("Erreur AI:", e)
+        return text
+
+# =============================
 # ROUTES
 # =============================
 @app.route("/")
 def index():
     return render_template("index.html")
+
 @app.route("/chat", methods=["POST"])
 def chat():
     data = request.get_json()
     message = data.get("message", "").strip()
-    user_id = request.remote_addr
-        # 🧠 INIT SESSION PROPERLY
-    if user_id not in sessions:
-        sessions[user_id] = {
-            "history": [],
-            "asked": [],
-            "state": "start"
-        }
 
-    session = sessions[user_id]
-    history = session["history"]
-    asked = session["asked"]
-    last_user = history[-2]["content"] if len(history) > 1 else ""
-    combined_message = last_user + " " + message
-
-    # 🟢 greeting
     if is_greeting(message):
-        return jsonify({
-            "reponse": "Bonjour 👋 Je suis TechBot. Décrivez votre problème."
-        })
+        return jsonify({"reponse": "Bonjour 👋 Décrivez votre problème."})
 
-    history.append({"role": "user", "content": message})
+    cat = trouver_categorie(message)
 
-    # 🧠 CATEGORY
-    cat, second = trouver_categorie(combined_message)
-    session["last_cat"] = cat["categorie"] if cat else session.get("last_cat")
-
-    # ❌ NOT UNDERSTOOD
     if not cat:
-        reply = gemini_fallback(message, history)
-        session["state"] = "fallback"
-
-    # 🤯 AMBIGUITY
-    elif second and "ambiguity" not in asked:
-        reply = f"Est-ce que votre problème concerne plutôt {cat['categorie']} ?"
-        asked.append("ambiguity")
-        session["state"] = "ambiguity"
-
-    # ✅ NORMAL FLOW
+        reply = "Je ne comprends pas bien. Pouvez-vous préciser votre problème ?"
     else:
         base = build_response(cat)
-        reply = base["text"]
-        # 🔥 only one question
-        if len(asked) < 1:
-            reply += "\n\n" + base["question"]
-            asked.append("question_asked")
-        session["state"] = "solution"
-        # AI enhancement ONLY here
-        reply = ai_response(reply)
-
-    history.append({"role": "bot", "content": reply})
-    session["state"] = "solution" if cat else "fallback"
+        reply = ai_response(base)
 
     return jsonify({"reponse": reply})
+
 # =============================
 # RUN
 # =============================
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    print("Démarrage du serveur...")
+    try:
+        app.run(host="0.0.0.0", port=5000, debug=False)
+    except Exception as e:
+        print("Erreur serveur:", e)

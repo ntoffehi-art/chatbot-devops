@@ -1,181 +1,133 @@
-from flask import Flask, render_template, request, jsonify
-import string
-import nltk
-from nltk.stem import SnowballStemmer
-from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
-from gpt4all import GPT4All
+from flask import Flask, request, jsonify, render_template
+from llama_cpp import Llama
 
-# =============================
-# GPT4ALL MODEL
-# =============================
-# Après — chemin complet direct
-llm = GPT4All(
-    model_name="Llama-3.2-1B-Instruct-Q4_0.gguf",
-    model_path=r"C:\Users\dell\AppData\Local\nomic.ai\GPT4All\models",
-    allow_download=False
-)
-# =============================
-# FLASK
-# =============================
 app = Flask(__name__)
 
-# =============================
-# NLTK
-# =============================
-nltk.download('punkt', quiet=True)
-nltk.download('stopwords', quiet=True)
+llm = Llama(
+    model_path=r"C:\Users\dell\AppData\Local\nomic.ai\GPT4All\models\Llama-3.2-3B-Instruct-Q4_0.gguf",
+    n_ctx=1024,
+    n_threads=4,
+    verbose=False
+)
 
-stemmer = SnowballStemmer("french")
-STOP_WORDS = set(stopwords.words("french"))
-
-# =============================
-# MEMORY
-# =============================
-sessions = {}
-
-# =============================
-# BASE KNOWLEDGE
-# =============================
-BASE = [
-    {
-        "categorie": "Demarrage",
-        "mots_cles": ["demarr", "boot", "noir", "bip", "demarre"],
-        "solutions": [
-            "Vérifiez que le câble d'alimentation est bien branché",
-            "Essayez une autre prise électrique",
-            "Écoutez s'il y a des bips au démarrage",
-            "Vérifiez si l'écran s'allume"
-        ],
-        "question": "Est-ce que votre PC fait un bruit ou affiche quelque chose ?"
-    },
-    {
-        "categorie": "Internet",
-        "mots_cles": ["wifi", "internet", "reseau", "connexion"],
-        "solutions": [
-            "Vérifiez que le WiFi est activé",
-            "Redémarrez votre routeur",
-            "Essayez avec un autre appareil",
-            "Vérifiez les câbles réseau"
-        ],
-        "question": "Le problème concerne tous les appareils ou seulement votre PC ?"
-    }
-]
-
-# =============================
-# GREETING
-# =============================
-def is_greeting(message):
-    greetings = ["bonjour", "salut", "hello", "salam", "hi"]
-    return any(g in message.lower() for g in greetings)
-
-# =============================
-# NLP
-# =============================
-def pretraiter(text):
+# ================= NORMALIZE =================
+def normalize(text):
     text = text.lower()
+    replacements = {
+        "é": "e","è": "e","ê": "e",
+        "à": "a","â": "a",
+        "ù": "u","û": "u",
+        "î": "i","ï": "i"
+    }
+    for a,b in replacements.items():
+        text = text.replace(a,b)
+    return text
 
-    accents = {
-        'é': 'e','è': 'e','ê': 'e','ë': 'e',
-        'à': 'a','â': 'a','ä': 'a',
-        'ô': 'o','ö': 'o',
-        'û': 'u','ù': 'u','ü': 'u',
-        'î': 'i','ï': 'i',
-        'ç': 'c'
+# ================= INTENT =================
+def detect_intent(msg):
+    msg = normalize(msg)
+
+    if any(w in msg for w in ["internet","wifi","connexion","reseau","net"]):
+        return "internet"
+    if any(w in msg for w in ["bleu","bsod"]):
+        return "bsod"
+    if any(w in msg for w in ["lent","lag","ralenti"]):
+        return "slow"
+    if any(w in msg for w in ["virus","malware"]):
+        return "virus"
+    if any(w in msg for w in ["clavier","souris"]):
+        return "input"
+    if any(w in msg for w in ["son","audio"]):
+        return "sound"
+    if any(w in msg for w in ["imprimante"]):
+        return "printer"
+    if any(w in msg for w in ["demarre","boot","allume pas"]):
+        return "boot"
+    if any(w in msg for w in ["c'est resolu", "merci c'est", "parfait", "super"]):
+        return "resolved"
+
+    if any(w in msg for w in ["pas encore resolu", "pas resolu", "besoin d'aide"]):
+        return "need_help"
+
+    if any(w in msg for w in ["autre probleme", "autre"]):
+        return "restart"
+    return "unknown"
+
+# ================= RESPONSES =================
+def get_response(intent):
+    base = {
+        "boot": "⚠️ PC ne démarre pas\n1. Vérifie que le câble d'alimentation est bien branché\n2. Teste avec un autre écran ou câble HDMI\n3. Retire les barrettes RAM et remets-les\n4. Écoute les bips au démarrage\n👉 Si rien ne marche : carte mère ou alimentation défaillante",
+        "internet": "🌐 Internet ne marche pas\n1. Redémarre le routeur (débranche 30 sec)\n2. Vérifie si le WiFi est activé\n3. Teste avec un autre appareil\n4. Oublie le réseau WiFi et reconnecte-toi",
+        "bsod": "🔵 Écran bleu (BSOD)\n1. Note le code d'erreur affiché\n2. Mets à jour tes pilotes (carte graphique surtout)\n3. Vérifie la RAM avec l'outil mdsched (Win+R)\n4. Vérifie les mises à jour Windows récentes",
+        "slow": "🐢 PC lent\n1. Ouvre le gestionnaire des tâches (Ctrl+Shift+Esc)\n2. Vérifie CPU/RAM — ferme les programmes lourds\n3. Désactive les programmes au démarrage\n4. Libère de l'espace disque (min 15% libre)",
+        "virus": "🦠 Virus / Malware\n1. Lance Windows Defender → Analyse complète\n2. Télécharge Malwarebytes (gratuit) et analyse\n3. Vérifie les extensions suspectes dans ton navigateur\n4. Change tes mots de passe après nettoyage",
+        "input": "⌨️ Clavier / Souris\n1. Débranche et rebranche le câble USB\n2. Essaie un autre port USB\n3. Pour Bluetooth : désactive et réactive\n4. Teste le périphérique sur un autre PC",
+        "sound": "🔇 Problème de son\n1. Vérifie que le volume n'est pas coupé (icône en bas à droite)\n2. Clic droit sur l'icône son → Résoudre les problèmes\n3. Vérifie le bon périphérique de sortie sélectionné\n4. Mets à jour les pilotes audio dans le gestionnaire de périphériques",
+        "printer": "🖨️ Imprimante\n1. Vérifie que l'imprimante est allumée et connectée\n2. Supprime les tâches bloquées dans la file d'impression\n3. Redémarre le spouleur : Win+R → services.msc → Spouleur d'impression\n4. Réinstalle les pilotes depuis le site du fabricant",
+        "resolved": "✅ Parfait ! Ravi d'avoir aidé.\n💬 Si tu as un autre problème, décris-le !",
+        "restart":  "🔄 Pas de problème ! Quel est ton nouveau problème ?\n(internet, virus, écran bleu...)",
+        "need_help": "🔧 D'accord, continuons le diagnostic.\nDécris-moi mieux le problème ou essaie de redémarrer le PC.",
     }
 
-    for a, b in accents.items():
-        text = text.replace(a, b)
+    # Pas de "💡 Essaie aussi" pour ces intents
+    no_suffix = ["resolved", "restart", "need_help"]
 
-    text = text.translate(str.maketrans("", "", string.punctuation))
-    tokens = word_tokenize(text)
+    if intent in base:
+        if intent in no_suffix:
+            return base[intent]
+        return base[intent] + "\n\n💡 Essaie aussi : internet, écran bleu, lent..."
+    return None
 
-    return [
-        stemmer.stem(t)
-        for t in tokens
-        if t not in STOP_WORDS and len(t) > 2
-    ]
-
-# =============================
-# CATEGORY DETECTION
-# =============================
-def trouver_categorie(message):
-    words = set(pretraiter(message))
-
-    best_cat = None
-    best_score = 0
-
-    for cat in BASE:
-        keywords = set(cat["mots_cles"])
-        score = len(words.intersection(keywords))
-
-        if score > best_score:
-            best_score = score
-            best_cat = cat
-
-    if best_score == 0:
-        return None
-
-    return best_cat
-
-# =============================
-# RESPONSE BUILDER
-# =============================
-def build_response(cat):
-    steps = "\n".join([f"{i+1}. {s}" for i, s in enumerate(cat["solutions"])])
-    return f"Voici les étapes à suivre :\n{steps}\n\n{cat['question']}"
-
-# =============================
-# GPT4ALL AI
-# =============================
-def ai_response(text):
+def reformuler(texte):
     try:
-        prompt = f"""
-Tu es un assistant technique.
-Rends ce texte clair, simple et naturel en français.
+        res = llm.create_chat_completion(
+            messages=[
+                {"role": "system", "content": "Tu es TechBot. Reformule ces étapes en français simple et amical. Garde exactement les mêmes étapes, ne rajoute rien."},
+                {"role": "user", "content": texte}
+            ],
+            max_tokens=200,
+            temperature=0.3
+        )
+        result = res["choices"][0]["message"]["content"].strip()
+        if len(result) > 60:
+            return result
+        return texte
+    except:
+        return texte
 
-{text}
-"""
-        with llm.chat_session():
-            response = llm.generate(prompt, max_tokens=200)
+# ================= FALLBACK =================
+def fallback_llm(text):
+    try:
+        res = llm.create_chat_completion(
+            messages=[
+                {"role":"system","content":"Assistant IT. Réponds court."},
+                {"role":"user","content":text}
+            ],
+            max_tokens=60,
+            temperature=0.3
+        )
+        return res["choices"][0]["message"]["content"]
+    except:
+        return "🤔 Précise: internet, écran bleu, lent..."
 
-        return response.strip()
-
-    except Exception as e:
-        print("Erreur AI:", e)
-        return text
-
-# =============================
-# ROUTES
-# =============================
+# ================= ROUTES =================
 @app.route("/")
-def index():
+def home():
     return render_template("index.html")
 
 @app.route("/chat", methods=["POST"])
 def chat():
-    data = request.get_json()
-    message = data.get("message", "").strip()
+    message = request.json.get("message","")
 
-    if is_greeting(message):
-        return jsonify({"reponse": "Bonjour 👋 Décrivez votre problème."})
+    intent = detect_intent(message)
+    print(f"[DEBUG] {message} → {intent}")
 
-    cat = trouver_categorie(message)
+    response = get_response(intent)
 
-    if not cat:
-        reply = "Je ne comprends pas bien. Pouvez-vous préciser votre problème ?"
-    else:
-        base = build_response(cat)
-        reply = ai_response(base)
+    if response:
+        return jsonify({"reponse": reformuler(response)})
+    return jsonify({"reponse": fallback_llm(message)})
 
-    return jsonify({"reponse": reply})
-
-# =============================
-# RUN
-# =============================
 if __name__ == "__main__":
-    print("Démarrage du serveur...")
-    try:
-        app.run(host="0.0.0.0", port=5000, debug=False)
-    except Exception as e:
-        print("Erreur serveur:", e)
+    print("🚀 TechBot prêt sur http://localhost:5000")
+    app.run(host="0.0.0.0", port=5000, debug=False)

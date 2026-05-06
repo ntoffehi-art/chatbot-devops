@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chatbot Pannes Informatiques</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
 </head>
 <body>
 <div class="app">
@@ -70,10 +71,12 @@
 </div>
 
 <script>
-// ============================================================
-//   1-GESTION DE L'HISTORIQUE (localStorage)
-// ============================================================
-// Chargement des conversations sauvegardées (ou tableau vide si aucune)
+let userId = localStorage.getItem("techbot_user");
+if (!userId) {
+    userId = "user_" + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem("techbot_user", userId);
+}
+
 let conversations = JSON.parse(localStorage.getItem('techbot_conversations') || '[]');
 let convActive = null;
 
@@ -116,7 +119,7 @@ function chargerConversation(idx) {
     const messages = document.getElementById('messages');
     messages.innerHTML = '';
     conversations[idx].messages.forEach(msg => {
-        ajouterMessageUI(msg.texte, msg.role, msg.time, false);
+        ajouterMessageUI(msg.texte, msg.role, msg.time, false, false);
     });
     afficherSidebar();
     if (window.innerWidth < 768) toggleSidebar();
@@ -175,10 +178,6 @@ function toggleSidebar() {
     document.getElementById('sidebar').classList.toggle('open');
 }
 
-// ============================================================
-//   CHAT
-// ============================================================
-
 document.getElementById("user-input").addEventListener("keydown", e => {
     if (e.key === "Enter") envoyerMessage();
 });
@@ -188,22 +187,58 @@ function envoyer(texte) {
     envoyerMessage();
 }
 
-function ajouterMessageUI(texte, role, time, scroll = true) {
+// ============================================================
+//   AJOUTER MESSAGE UI
+// ============================================================
+function ajouterMessageUI(texte, role, time, scroll = true, showQuickReply = false) {
+    const messages = document.getElementById("messages");
     const div = document.createElement("div");
     div.className = "message " + role;
+
     const avatar = document.createElement("div");
     avatar.className = "avatar";
     avatar.textContent = role === "bot" ? "🤖" : "👤";
+
     const content = document.createElement("div");
     content.className = "msg-content";
+
     const bubble = document.createElement("div");
     bubble.className = "bubble";
     bubble.innerHTML = texte.replace(/\n/g, "<br>");
+
     const timeEl = document.createElement("div");
     timeEl.className = "time";
     timeEl.textContent = time;
+
     content.appendChild(bubble);
     content.appendChild(timeEl);
+
+    // ===== QUICK REPLY BUTTONS =====
+    if (role === "bot" && showQuickReply) {
+        const qr = document.createElement("div");
+        qr.className = "quick-replies";
+
+        const btns = [
+            { label: "✅ Problème résolu", classe: "green", msg: "merci c'est résolu" },
+            { label: "❌ Pas encore résolu", classe: "red", msg: "pas encore résolu, j'ai besoin d'aide" },
+            { label: "🔄 Autre problème", classe: "blue", msg: "j'ai un autre problème" }
+        ];
+
+        btns.forEach(b => {
+            const btn = document.createElement("button");
+            btn.className = "qr-btn " + b.classe;
+            btn.textContent = b.label;
+            btn.onclick = () => {
+                // Désactiver tous les boutons après clic
+                qr.querySelectorAll(".qr-btn").forEach(el => el.disabled = true);
+                envoyer(b.msg);
+            };
+            qr.appendChild(btn);
+        });
+
+        content.appendChild(qr);
+    }
+
     div.appendChild(avatar);
     div.appendChild(content);
     messages.appendChild(div);
@@ -225,13 +260,24 @@ function supprimerTyping() {
     if (t) t.remove();
 }
 
+// Messages qui ne nécessitent pas de quick reply
+const MESSAGES_SANS_BOUTONS = [
+    "merci", "résolu", "parfait", "super", "ok merci",
+    "j'ai un autre problème", "autre problème"
+];
+
+function needsQuickReply(message) {
+    const msg = message.toLowerCase();
+    return !MESSAGES_SANS_BOUTONS.some(m => msg.includes(m));
+}
+
 async function envoyerMessage() {
     const input = document.getElementById("user-input");
     const message = input.value.trim();
     if (!message) return;
 
     const time = getTime();
-    ajouterMessageUI(message, "user", time);
+    ajouterMessageUI(message, "user", time, true, false);
     input.value = "";
     afficherTyping();
 
@@ -239,20 +285,24 @@ async function envoyerMessage() {
         const response = await fetch("/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message })
+            body: JSON.stringify({ message, user_id: userId })
         });
+        if (!response.ok) throw new Error("Server error");
+
         const data = await response.json();
         supprimerTyping();
-        ajouterMessageUI(data.reponse, "bot", getTime());
 
-        // Sauvegarder dans l'historique
+        // Afficher avec ou sans boutons selon le message
+        const showButtons = needsQuickReply(message);
+        ajouterMessageUI(data.reponse, "bot", getTime(), true, showButtons);
+
         if (convActive === null) {
-            convActive = conversations.length;
             conversations.push({
-                titre: message.substring(0, 30) + (message.length > 30 ? '...' : ''),
+                titre: message.substring(0, 30),
                 date: getDate(),
                 messages: []
             });
+            convActive = conversations.length - 1;
         }
         conversations[convActive].messages.push({ texte: message, role: 'user', time });
         conversations[convActive].messages.push({ texte: data.reponse, role: 'bot', time: getTime() });
@@ -261,11 +311,13 @@ async function envoyerMessage() {
 
     } catch {
         supprimerTyping();
-        ajouterMessageUI("Erreur de connexion au serveur.", "bot", getTime());
+        ajouterMessageUI("Erreur de connexion au serveur.", "bot", getTime(), true, false);
     }
 }
 
-// Init
+// Réponses aux quick replies côté bot
+// On gère aussi les réponses spéciales dans app.py via detect_intent
+// Ici on gère côté frontend les messages "résolu"
 afficherSidebar();
 </script>
 </body>

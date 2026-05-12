@@ -8,317 +8,324 @@
 
 </head>
 <body>
+
 <div class="app">
 
     <!-- SIDEBAR -->
-    <div class="sidebar" id="sidebar">
+    <div class="sidebar">
+
         <div class="sidebar-header">
-            <span>💬 Historique</span>
-            <button class="new-chat-btn" onclick="nouvelleConversation()">+ Nouveau</button>
+            <h3>💬 Historique</h3>
+
+            <button onclick="nouvelleConversation()">
+                Nouveau
+            </button>
         </div>
-        <div class="conversations" id="conversations"></div>
-        <div class="sidebar-footer">
-            <button class="clear-btn" onclick="effacerTout()">🗑️ Tout effacer</button>
+
+        <div id="conversations" class="conversations">
         </div>
+
     </div>
 
     <!-- MAIN -->
     <div class="main">
+
+        <!-- HEADER -->
         <div class="header">
-            <div class="header-left">
-                <button class="menu-btn" onclick="toggleSidebar()">☰</button>
-                <div class="bot-avatar">🖥️</div>
-                <div class="header-info">
-                    <h1>TechBot</h1>
-                    <span class="status"><span class="dot"></span>En ligne</span>
-                </div>
-            </div>
-            <button class="clear-conv-btn" onclick="effacerConversation()" title="Effacer la conversation">🗑️</button>
-        </div>
 
-        <div class="messages" id="messages">
-            <div class="message bot">
-                <div class="avatar">🤖</div>
-                <div class="msg-content">
-                    <div class="bubble">
-                        Bonjour ! Je suis <strong>TechBot</strong>, votre assistant pannes informatiques.<br>
-                        Choisissez une catégorie ou décrivez votre problème.
-                    </div>
-                    <div class="categories">
-                        <button class="cat-btn" onclick="envoyer('PC ne démarre pas')">💡 PC ne démarre pas</button>
-                        <button class="cat-btn" onclick="envoyer('écran bleu')">🔵 Écran bleu</button>
-                        <button class="cat-btn" onclick="envoyer('internet ne marche pas')">🌐 Problème Internet</button>
-                        <button class="cat-btn" onclick="envoyer('PC très lent')">🐢 PC lent</button>
-                        <button class="cat-btn" onclick="envoyer('virus')">🦠 Virus / Malware</button>
-                        <button class="cat-btn" onclick="envoyer('clavier souris')">⌨️ Clavier / Souris</button>
-                        <button class="cat-btn" onclick="envoyer('pas de son')">🔇 Problème son</button>
-                        <button class="cat-btn" onclick="envoyer('imprimante')">🖨️ Imprimante</button>
-                    </div>
-                </div>
+            <div class="logo">
+                🤖 TechBot
             </div>
-        </div>
 
-        <div class="input-area">
-            <input type="text" id="user-input" placeholder="Décrivez votre problème..." autocomplete="off"/>
-            <button class="send-btn" onclick="envoyerMessage()">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="22" y1="2" x2="11" y2="13"></line>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                </svg>
+            <button onclick="effacerConversation()">
+                🗑️
             </button>
+
         </div>
+
+        <!-- MESSAGES -->
+        <div id="messages" class="messages">
+
+            <div class="message bot">
+                <div class="bubble">
+                    Bonjour 👋<br>
+                    Décrivez votre problème informatique.
+                </div>
+            </div>
+
+        </div>
+
+        <!-- INPUT -->
+        <div class="input-area">
+
+            <input
+                type="text"
+                id="user-input"
+                placeholder="Décrire votre problème..."
+            >
+
+            <button onclick="envoyerMessage()">
+                Envoyer
+            </button>
+
+        </div>
+
     </div>
+
 </div>
 
 <script>
-let userId = localStorage.getItem("techbot_user");
-if (!userId) {
-    userId = "user_" + Math.random().toString(36).substr(2, 9);
-    localStorage.setItem("techbot_user", userId);
-}
 
-let conversations = JSON.parse(localStorage.getItem('techbot_conversations') || '[]');
+let conversations = JSON.parse(
+    localStorage.getItem("conversations") || "[]"
+);
+
 let convActive = null;
 
+// ===============================
+// SAUVEGARDER HISTORIQUE
+// ===============================
 function sauvegarder() {
-    localStorage.setItem('techbot_conversations', JSON.stringify(conversations));
+
+    localStorage.setItem(
+        "conversations",
+        JSON.stringify(conversations)
+    );
 }
 
-function getTime() {
-    const now = new Date();
-    return now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
-}
-
-function getDate() {
-    return new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' });
-}
-
+// ===============================
+// AFFICHER SIDEBAR
+// ===============================
 function afficherSidebar() {
-    const container = document.getElementById('conversations');
-    container.innerHTML = '';
-    if (conversations.length === 0) {
-        container.innerHTML = '<div class="no-conv">Aucune conversation</div>';
-        return;
-    }
-    [...conversations].reverse().forEach((conv, i) => {
-        const realIdx = conversations.length - 1 - i;
-        const div = document.createElement('div');
-        div.className = 'conv-item' + (realIdx === convActive ? ' active' : '');
+
+    const container =
+        document.getElementById("conversations");
+
+    container.innerHTML = "";
+
+    conversations.forEach((conv, index) => {
+
+        const div = document.createElement("div");
+
+        div.className = "conv-item";
+
         div.innerHTML = `
-            <div class="conv-info" onclick="chargerConversation(${realIdx})">
-                <div class="conv-title">${conv.titre}</div>
-                <div class="conv-date">${conv.date}</div>
+            <div onclick="chargerConversation(${index})">
+                ${conv.titre}
             </div>
-            <button class="conv-delete" onclick="supprimerConversation(${realIdx})">✕</button>`;
+        `;
+
         container.appendChild(div);
     });
 }
 
-function chargerConversation(idx) {
-    convActive = idx;
-    const messages = document.getElementById('messages');
-    messages.innerHTML = '';
-    conversations[idx].messages.forEach(msg => {
-        ajouterMessageUI(msg.texte, msg.role, msg.time, false, false);
-    });
-    afficherSidebar();
-    if (window.innerWidth < 768) toggleSidebar();
-}
+// ===============================
+// AJOUTER MESSAGE UI
+// ===============================
+function ajouterMessageUI(message, role) {
 
-function nouvelleConversation() {
-    convActive = null;
-    const messages = document.getElementById('messages');
-    messages.innerHTML = `
-        <div class="message bot">
-            <div class="avatar">🤖</div>
-            <div class="msg-content">
-                <div class="bubble">Bonjour ! Je suis <strong>TechBot</strong>. Comment puis-je vous aider ?</div>
-                <div class="categories">
-                    <button class="cat-btn" onclick="envoyer('PC ne démarre pas')">💡 PC ne démarre pas</button>
-                    <button class="cat-btn" onclick="envoyer('écran bleu')">🔵 Écran bleu</button>
-                    <button class="cat-btn" onclick="envoyer('internet ne marche pas')">🌐 Problème Internet</button>
-                    <button class="cat-btn" onclick="envoyer('PC très lent')">🐢 PC lent</button>
-                    <button class="cat-btn" onclick="envoyer('virus')">🦠 Virus / Malware</button>
-                    <button class="cat-btn" onclick="envoyer('clavier souris')">⌨️ Clavier / Souris</button>
-                    <button class="cat-btn" onclick="envoyer('pas de son')">🔇 Problème son</button>
-                    <button class="cat-btn" onclick="envoyer('imprimante')">🖨️ Imprimante</button>
-                </div>
-            </div>
-        </div>`;
-    if (window.innerWidth < 768) toggleSidebar();
-}
+    const messages =
+        document.getElementById("messages");
 
-function effacerConversation() {
-    if (convActive !== null) {
-        conversations.splice(convActive, 1);
-        sauvegarder();
-        convActive = null;
-        afficherSidebar();
-    }
-    nouvelleConversation();
-}
-
-function supprimerConversation(idx) {
-    conversations.splice(idx, 1);
-    sauvegarder();
-    if (convActive === idx) { convActive = null; nouvelleConversation(); }
-    else if (convActive > idx) convActive--;
-    afficherSidebar();
-}
-
-function effacerTout() {
-    conversations = [];
-    sauvegarder();
-    convActive = null;
-    afficherSidebar();
-    nouvelleConversation();
-}
-
-function toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('open');
-}
-
-document.getElementById("user-input").addEventListener("keydown", e => {
-    if (e.key === "Enter") envoyerMessage();
-});
-
-function envoyer(texte) {
-    document.getElementById("user-input").value = texte;
-    envoyerMessage();
-}
-
-// ============================================================
-//   AJOUTER MESSAGE UI
-// ============================================================
-function ajouterMessageUI(texte, role, time, scroll = true, showQuickReply = false) {
-    const messages = document.getElementById("messages");
     const div = document.createElement("div");
+
     div.className = "message " + role;
 
-    const avatar = document.createElement("div");
-    avatar.className = "avatar";
-    avatar.textContent = role === "bot" ? "🤖" : "👤";
+    div.innerHTML = `
+        <div class="bubble">
+            ${message}
+        </div>
+    `;
 
-    const content = document.createElement("div");
-    content.className = "msg-content";
-
-    const bubble = document.createElement("div");
-    bubble.className = "bubble";
-    bubble.innerHTML = texte.replace(/\n/g, "<br>");
-
-    const timeEl = document.createElement("div");
-    timeEl.className = "time";
-    timeEl.textContent = time;
-
-    content.appendChild(bubble);
-    content.appendChild(timeEl);
-
-    // ===== QUICK REPLY BUTTONS =====
-    if (role === "bot" && showQuickReply) {
-        const qr = document.createElement("div");
-        qr.className = "quick-replies";
-
-        const btns = [
-            { label: "✅ Problème résolu", classe: "green", msg: "merci c'est résolu" },
-            { label: "❌ Pas encore résolu", classe: "red", msg: "pas encore résolu, j'ai besoin d'aide" },
-            { label: "🔄 Autre problème", classe: "blue", msg: "j'ai un autre problème" }
-        ];
-
-        btns.forEach(b => {
-            const btn = document.createElement("button");
-            btn.className = "qr-btn " + b.classe;
-            btn.textContent = b.label;
-            btn.onclick = () => {
-                // Désactiver tous les boutons après clic
-                qr.querySelectorAll(".qr-btn").forEach(el => el.disabled = true);
-                envoyer(b.msg);
-            };
-            qr.appendChild(btn);
-        });
-
-        content.appendChild(qr);
-    }
-
-    div.appendChild(avatar);
-    div.appendChild(content);
     messages.appendChild(div);
-    if (scroll) messages.scrollTop = messages.scrollHeight;
+
+    messages.scrollTop = messages.scrollHeight;
 }
 
+// ===============================
+// TYPING
+// ===============================
 function afficherTyping() {
-    const messages = document.getElementById("messages");
+
+    const messages =
+        document.getElementById("messages");
+
     const div = document.createElement("div");
+
     div.className = "message bot";
+
     div.id = "typing";
-    div.innerHTML = `<div class="avatar">🤖</div><div class="msg-content"><div class="bubble typing"><span></span><span></span><span></span></div></div>`;
+
+    div.innerHTML = `
+        <div class="bubble">
+            TechBot écrit...
+        </div>
+    `;
+
     messages.appendChild(div);
+
     messages.scrollTop = messages.scrollHeight;
 }
 
 function supprimerTyping() {
-    const t = document.getElementById("typing");
-    if (t) t.remove();
-}
 
-// Messages qui ne nécessitent pas de quick reply
-const MESSAGES_SANS_BOUTONS = [
-    "merci", "résolu", "parfait", "super", "ok merci",
-    "j'ai un autre problème", "autre problème"
-];
+    const typing =
+        document.getElementById("typing");
 
-function needsQuickReply(message) {
-    const msg = message.toLowerCase();
-    return !MESSAGES_SANS_BOUTONS.some(m => msg.includes(m));
-}
-
-async function envoyerMessage() {
-    const input = document.getElementById("user-input");
-    const message = input.value.trim();
-    if (!message) return;
-
-    const time = getTime();
-    ajouterMessageUI(message, "user", time, true, false);
-    input.value = "";
-    afficherTyping();
-
-    try {
-        const response = await fetch("/chat", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message, user_id: userId })
-        });
-        if (!response.ok) throw new Error("Server error");
-
-        const data = await response.json();
-        supprimerTyping();
-
-        // Afficher avec ou sans boutons selon le message
-        const showButtons = needsQuickReply(message);
-        ajouterMessageUI(data.reponse, "bot", getTime(), true, showButtons);
-
-        if (convActive === null) {
-            conversations.push({
-                titre: message.substring(0, 30),
-                date: getDate(),
-                messages: []
-            });
-            convActive = conversations.length - 1;
-        }
-        conversations[convActive].messages.push({ texte: message, role: 'user', time });
-        conversations[convActive].messages.push({ texte: data.reponse, role: 'bot', time: getTime() });
-        sauvegarder();
-        afficherSidebar();
-
-    } catch {
-        supprimerTyping();
-        ajouterMessageUI("Erreur de connexion au serveur.", "bot", getTime(), true, false);
+    if (typing) {
+        typing.remove();
     }
 }
 
-// Réponses aux quick replies côté bot
-// On gère aussi les réponses spéciales dans app.py via detect_intent
-// Ici on gère côté frontend les messages "résolu"
+// ===============================
+// ENVOYER MESSAGE
+// ===============================
+async function envoyerMessage() {
+
+    const input =
+        document.getElementById("user-input");
+
+    const message = input.value.trim();
+
+    if (!message) return;
+
+    ajouterMessageUI(message, "user");
+
+    input.value = "";
+
+    afficherTyping();
+
+    try {
+
+        const response = await fetch("/chat", {
+
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json"
+            },
+
+            body: JSON.stringify({
+                message: message
+            })
+
+        });
+
+        const data = await response.json();
+
+        supprimerTyping();
+
+        ajouterMessageUI(data.reponse, "bot");
+
+        // Nouvelle conversation
+        if (convActive === null) {
+
+            conversations.push({
+
+                titre: message.substring(0, 25),
+
+                messages: []
+
+            });
+
+            convActive =
+                conversations.length - 1;
+        }
+
+        // Sauvegarder messages
+        conversations[convActive].messages.push({
+            role: "user",
+            texte: message
+        });
+
+        conversations[convActive].messages.push({
+            role: "bot",
+            texte: data.reponse
+        });
+
+        sauvegarder();
+
+        afficherSidebar();
+
+    } catch (error) {
+
+        supprimerTyping();
+
+        ajouterMessageUI(
+            "Erreur serveur.",
+            "bot"
+        );
+    }
+}
+
+// ===============================
+// CHARGER CONVERSATION
+// ===============================
+function chargerConversation(index) {
+
+    convActive = index;
+
+    const messages =
+        document.getElementById("messages");
+
+    messages.innerHTML = "";
+
+    conversations[index].messages.forEach(msg => {
+
+        ajouterMessageUI(
+            msg.texte,
+            msg.role
+        );
+    });
+}
+
+// ===============================
+// NOUVELLE CONVERSATION
+// ===============================
+function nouvelleConversation() {
+
+    convActive = null;
+
+    document.getElementById("messages").innerHTML = `
+        <div class="message bot">
+            <div class="bubble">
+                Bonjour 👋<br>
+                Décrivez votre problème informatique.
+            </div>
+        </div>
+    `;
+}
+
+// ===============================
+// EFFACER CONVERSATION
+// ===============================
+function effacerConversation() {
+
+    if (convActive !== null) {
+
+        conversations.splice(convActive, 1);
+
+        sauvegarder();
+
+        afficherSidebar();
+
+        nouvelleConversation();
+    }
+}
+
+// ENTER
+document
+.getElementById("user-input")
+.addEventListener("keydown", function(event) {
+
+    if (event.key === "Enter") {
+        envoyerMessage();
+    }
+});
+
 afficherSidebar();
+
 </script>
+
 </body>
 </html>

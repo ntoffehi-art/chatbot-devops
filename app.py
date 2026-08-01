@@ -22,7 +22,7 @@ client = OpenAI(
 # =========================
 # FLASK APP
 # =========================
-app = Flask(_name_)
+app = Flask(__name__)
 
 # Historique en mémoire : { user_id: [{ role, content }, ...] }
 historiques = {}
@@ -104,6 +104,6 @@ def reset():
         del historiques[user_id]
 
     return jsonify({"status": "ok"})
-if _name_ == "_main_":
+if __name__ == "__main__":
     print("🚀 TechBot lancé sur http://127.0.0.1:5000")
     app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)

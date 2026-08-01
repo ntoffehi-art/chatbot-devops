@@ -1,11 +1,26 @@
 # TechBot - AI IT Troubleshooting Chatbot
-TechBot is an interactive AI assistant designed to help users diagnose and resolve common IT hardware and software errors.
 
-## Live Demos
-- **Frontend UI (GitHub Pages):** [Demo TechBot](https://ntoffehi-art.github.io/TechBot/)
-- **Backend API (Render):** [https://chatbot-devops-1.onrender.com](https://chatbot-devops-1.onrender.com)
+TechBot est un assistant virtuel basé sur l'IA (Groq API / Llama 3) conçu pour aider les utilisateurs à diagnostiquer et résoudre les erreurs informatiques matérielles et logicielles courantes.
 
-## Tech Stack & DevOps
-- **Frontend:** HTML5, CSS3, JavaScript
-- **Backend:** Python (Flask)
-- **DevOps:** Docker, GitHub Actions (CI/CD), Render Deployment
+---
+
+## 🌐 Déploiement en Ligne (Live Demos)
+
+- **Interface Frontend (GitHub Pages) :** [TechBot UI](https://ntoffehi-art.github.io/chatbot-devops/)
+- **API Backend (Render) :** [https://chatbot-devops-1.onrender.com](https://chatbot-devops-1.onrender.com)
+
+---
+
+## 🛠️ Stack Technique
+
+- **Frontend :** HTML5, CSS3, JavaScript (Fetch API)
+- **Backend :** Python (Flask), Groq SDK
+- **Déploiement :** Render (Web Service), GitHub Pages
+
+---
+
+## 👥 Contributeurs
+
+- [@ntoffehi-art](https://github.com/ntoffehi-art)
+- [@nouranezekri2](https://github.com/nouranezekri2)
+- [@abirhabouria05-ai](https://github.com/abirhabouria05-ai)
